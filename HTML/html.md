@@ -231,6 +231,9 @@ if (canvas.getContext){
   </body>
 </html>
 ```
+#### 文档参考
+https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial
+
 
 ### MDN 网址
 https://developer.mozilla.org/zh-CN/docs/Web/Tutorials
