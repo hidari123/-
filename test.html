@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+        let makeCounter =  () => {
+            // 私有作用域
+            let num = 0
+            function changeBy(val) {
+                num += val
+            }
+            // 给你什么你才能拿
+            return {
+                add: () => {
+                    changeBy(1)
+                },
+                reduce: () => {
+                    changeBy(-1)
+                },
+                value: () => {
+                    return num
+                }
+            }
+        }
+        // 创建了闭包，内部值私有，都有独立的词法作用域
+        // 面向对象 ———— 数据的隐藏和封装
+        let counter1 = makeCounter()
+        let counter2 = makeCounter()
+        counter1.add()
+        counter1.add()
+        counter2.add()
+        console.log(counter1.value()) // 2
+        console.log(counter2.value()) // 1
+    </script>
+</body>
+</html>
