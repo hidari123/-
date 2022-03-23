@@ -7,35 +7,26 @@
     <title>Document</title>
 </head>
 <body>
+    <!-- 双向数据绑定 -->
+    <!--    username 是一个 id -->
+    <input type="text" placeholder="请输入名字" id="username">
+    <span>显示值：</span><p id="uName"></p>
     <script>
-        let makeCounter =  () => {
-            // 私有作用域
-            let num = 0
-            function changeBy(val) {
-                num += val
+        let obj = {}
+        // vue2中 操作/劫持对象
+        Object.defineProperty(obj, 'username', { // username 是一个属性 和上面的 username 无关
+            get: () => {
+                console.log('取值')
+            },
+            set: (val) => {
+                console.log('设置')
+                document.getElementById('uName').innerHTML = val
             }
-            // 给你什么你才能拿
-            return {
-                add: () => {
-                    changeBy(1)
-                },
-                reduce: () => {
-                    changeBy(-1)
-                },
-                value: () => {
-                    return num
-                }
-            }
-        }
-        // 创建了闭包，内部值私有，都有独立的词法作用域
-        // 面向对象 ———— 数据的隐藏和封装
-        let counter1 = makeCounter()
-        let counter2 = makeCounter()
-        counter1.add()
-        counter1.add()
-        counter2.add()
-        console.log(counter1.value()) // 2
-        console.log(counter2.value()) // 1
+        })
+        document.getElementById('username').addEventListener('keyup', () => {
+            // 事件都有内置的 event 对象
+            obj.username = event.target.value
+        })
     </script>
 </body>
 </html>
