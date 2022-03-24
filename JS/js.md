@@ -11,6 +11,7 @@
   - [闭包](#%E9%97%AD%E5%8C%85)
   - [作用域](#%E4%BD%9C%E7%94%A8%E5%9F%9F)
   - [promise](#promise)
+  - [深拷贝与浅拷贝](#%E6%B7%B1%E6%8B%B7%E8%B4%9D%E4%B8%8E%E6%B5%85%E6%8B%B7%E8%B4%9D)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -298,6 +299,11 @@ fn1()
     ```
 
 ## promise
+1. 是否可以用`return`代替`resolve`？
+    - 不可以，无法实现链式调用，且不符合规范
+2. `Promise`三种状态 => pending(待定) / fulfilled(已解决，已实现) / rejected(已拒绝，没有实现)，三种状态不能发生逆转
+- new promise(state: pending) -> 成功 -> resolve(res) -> state: 'fulfilled', result: res
+                              -> 失败 -> reject(err)  -> state: 'rejected', result: err
 ```js
 // 构造函数同步执行 1，2
 const promise = new Promise((resolve, reject) => {
@@ -312,3 +318,198 @@ promise.then(() => {
 console.log(4)
 // 1243
 ```
+3. 手写`promise`
+```js
+// 1. 基本结构
+function myPromise(excutor) {
+    let self = this
+    self.status = 'pending' // 状态
+    self.value = null // 成功之后返回数据
+    self.reason = null // 失败的原因
+
+    // 7. 解决异步问题 -> 暂存区
+    self.onFulfilledCallbacks = []
+    self.onRejectedCallbacks = []
+    // 返回成功的结果
+    function resolve(value) {
+        // 5.1
+        if(self.status === 'pending') {
+            self.value = value // 保存成功结果
+            self.status = 'fulfilled'
+            // 9. 状态改变 => 依次取出
+            self.onFulfilledCallbacks.forEach(item => item(value))
+        }
+    }
+
+    // 返回失败的原因
+    function reject(reason) {
+        // 5.2
+        if(self.status === 'pending') {
+            self.reason = reason // 失败原因
+            self.status = 'rejected'
+            // 9. 状态改变 => 依次取出
+            self.onRejectedCallbacks.forEach(item => item(reason))
+        }
+    }
+
+    // 4.  excutor -> 立即执行
+    // resolve 和 reject 两个函数作为参数传递给 executor（executor 函数在 Promise 构造函数返回所建 promise 实例对象前被调用）
+    excutor && excutor(resolve, reject)
+}
+
+// 2. =>  .then() 方法写在原型上
+// 不管成功或者失败都会进入
+myPromise.prototype.then = function(onFulfilled, onRejected) {
+    // 6. 确保传进来的是一个方法，如果不是，定义一个方法
+    onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : function(data) { resolve(data) }
+    onRejected = typeof onRejected === 'function' ? onRejected : function(err) { throw err }
+
+    let self = this
+    // 8. 暂存回调函数
+    // if(self.status === 'pending') {
+    //     self.onFulfilledCallbacks.push(onFulfilled)
+    //     self.onRejectedCallbacks.push(onRejected)
+    // }
+
+    // 链式调用
+    // 如果返回的是 promise 继续 .then 
+    // 如果不是 通过 resolve 返回值
+    if(self.status === 'fulfilled') {
+        return new myPromise((resolve, reject) => {
+            try {
+                let x = onFulfilled(self.status)
+                x instanceof myPromise ? x.then(resolve, reject) : resolve(x)
+            } catch(err) {
+                reject(err)
+            }
+        })
+    }
+
+    if(self.status === 'rejected') {
+        return new myPromise((resolve, reject) => {
+            try {
+                let x = onRejected(self.reason)
+                x instanceof myPromise ? x.then(resolve, reject) : resolve(x)
+            } catch(err) {
+                reject(err)
+            }
+        })
+    }
+
+    // 8. 暂存回调函数
+    if(self.status === 'pending') {
+        return new myPromise((resolve, reject) => {
+            self.onFulfilledCallbacks.push(() => {
+                let x = onFulfilled(self.value)
+                x instanceof myPromise ? x.then(resolve, reject) : resolve(x)
+            })
+            self.onRejectedCallbacks.push(() => {
+                let x = onRejected(self.reason)
+                x instanceof myPromise ? x.then(resolve, reject) : resolve(x)
+            })
+        })
+    }
+}
+
+// .catch()
+myPromise.prototype.catch = function(fn) {
+    return this.then(null, fn)
+}
+
+// 3. 初级调用
+let demo = new myPromise((resolve, reject) => {
+    console.log(111)
+    setTimeout(() => {
+        // console.log(222)
+        resolve(222)
+    }, 2000)
+})
+console.log(demo)
+demo.then(data => console.log(data))
+```
+
+
+## 深拷贝与浅拷贝
+1. 基本数据类型赋值 => 硬要说是什么拷贝，是深拷贝 => 开辟两个空间，互不影响
+```js
+// 基本数据类型
+// 赋值 => 硬要说是什么拷贝 是深拷贝 开辟两个空间 互不影响
+let a = 5
+let b = a
+b = 3
+console.log(a, b) // 5 3
+```
+2. 数组和对象的赋值都叫做浅拷贝
+```js
+// 引用数据类型
+// 数组和对象的赋值都叫做浅拷贝
+let arr = [1, 2, 3]
+let newArr = arr
+newArr.push(4)
+console.log(arr, newArr) // [1,2,3,4] [1,2,3,4]
+```
+3. 解构赋值 => 针对一维数组和对象可以看作是深拷贝，多维的是浅拷贝
+```js
+// 解构赋值
+// 针对一维数组和对象可以看作是深拷贝，多维的是浅拷贝
+let arr = [1, 2, 3]
+let newArr = [...arr]
+newArr.push(4)
+console.log(arr, newArr) // [1,2,3] [1,2,3,4]
+
+let arr2 = [[1, 2, 3], [4, 5, 6]]
+let newArr = [...arr2]
+newArr[0].push(888)
+console.log(arr2, newArr) // [Array[4], Arr[3]] [Array[4], Arr[3]]
+```
+4. 深拷贝用法
+    1. JSON.parse(JSON.stringify()) => 转换成字符串再转换回来 => 解决 80% （function不能转换）
+    ```js
+    let list = [
+        {id: 1, stuName: 'hidari', class: '5'},
+        {id: 2, stuName: 'migi', class: '2'},
+        {id: 3, stuName: 'timo', class: '3'},
+    ]
+    let newList = JSON.parse(JSON.stringify(list))
+    newList.push({id: 4, stuName: 'timi', class: '4'})
+    console.log(list, newList)
+    ```
+    2. 标准的深拷贝 => 引用数据类型（数组，对象）
+    ```js
+    let obj = {
+        ff: 'name',
+        gg: 1,
+        obj: { str: '111', age: 12},
+        fun: () => {
+            console.log(123)
+        },
+        arr: [1,2,3,4]
+    }
+    // 应用代码，容错代码，提示代码
+    function deepClone(source) {
+        // [] => Array(基类)
+        // {} => Object(基类)
+        const targetObj = source.constructor === Array ? [] : {} // constructor 构造器
+        for(let keys in source) {
+            if(source.hasOwnProperty(keys)) {
+                // keys => 基础数据类型 / 对象 / 数组
+                // 引用数据类型
+                if(source[keys] && typeof source[keys] === 'object') {
+                    targetObj[keys] = source[keys].constructor === Array ? [] : {} // 可以不要，因为后面会赋值
+                    targetObj[keys] = deepClone(source[keys]) // 递归
+                } else {
+                    // 基本数据类型 => 直接赋值
+                    targetObj[keys] = source[keys]
+                }
+            }
+        }
+        return targetObj
+    }
+    let newObj = deepClone(obj)
+    newObj.ff = 'migi'
+    newObj.arr.push('123')
+    newObj.fun = () => {
+        console.log('abc')
+    }
+    console.log(obj, newObj)
+    ```
