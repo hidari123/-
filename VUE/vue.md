@@ -17,6 +17,8 @@
     - [为什么要用 Proxy API 代替 defineProperty API？](#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E7%94%A8-proxy-api-%E4%BB%A3%E6%9B%BF-defineproperty-api)
     - [响应式是惰性的](#%E5%93%8D%E5%BA%94%E5%BC%8F%E6%98%AF%E6%83%B0%E6%80%A7%E7%9A%84)
     - [编译优化](#%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96)
+  - [render()](#render)
+  - [router.js 动态引入](#routerjs-%E5%8A%A8%E6%80%81%E5%BC%95%E5%85%A5)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -211,3 +213,236 @@ let proxy = new Proxy(datas, {
 3. slot编译优化
     1. vue2.x中，如果有一个组件传入了 slot，那么每次父组件更新的时候，会强制子组件update，造成性能浪费
     2. vue3.x优化了slot的生成，使得非动态slot中的属性更新只会触发子组件的更新，动态slot指的是在slot上面使用v-if / v-for，动态slot名字会导致slot产生运行时动态变化但是又无法被子组件track的操作
+
+## render()
+1. render()是templete的下一步，互补关系
+2. templete => render()创建真实DOM => 虚拟DOM => 转化成真实DOM
+3. render() 和 templete也叫类编译器
+```vue
+<!-- 一值多判断，可以用 render() -->
+<!-- 可以集中管理 -->
+<script>
+export default {
+    name: 'Button',
+    props: {
+        // 按钮类型
+        type: {
+            type: String,
+            default: 'normal'
+        },
+        // 按钮的 text
+        text: {
+            type: String,
+             default: 'normal'
+        }
+    },
+    render(h) {
+        // h => 原生 JS 中 createElement()
+        // 第一个参数：将要创建什么元素
+        // 第二个参数
+        return h('button', {
+            // v-bind: class
+            class: {
+                btn: true,
+                'btn-success': this.type === 'success',
+                'btn-danger': this.type === 'error',
+                'btn-warning': this.type === 'warning',
+                'normal': !this.type
+            },
+            // dom 属性
+            domProps: {
+                innerText: this.text || 'normal'
+            },
+            // v-on: click
+            on: {}
+        })
+    }
+}
+</script>
+<style scoped>
+.btn {
+    width: 100px;
+    height: 40px;
+    color: white;
+    transition: all .5s;
+}
+.btn:hover {
+    background: chartreuse;
+    cursor: pointer;
+}
+.btn-success {
+    background: green;
+}
+.btn-danger {
+    background: red;
+}
+.btn-warning {
+    background: orange;
+}
+.normal {
+    background: blue;
+}
+</style>
+```
+```vue
+<!-- helloWord.vue -->
+<template>
+    <div class='hello'>
+        <!-- 高精度权限判断 -->
+        <!-- 自定义指令 -->
+        <div v-display-key = "1">
+            <button>button one</button>
+        </div>
+        <div v-display-key = "2">
+            <button>button two</button>
+        </div>
+        <div v-display-key = "3">
+            <button>button three</button>
+        </div>
+        <!-- 一值多判断 -->
+        <Button :type='type', :text='text'></Button>  
+    </div>
+</template>
+<!-- 引用 -->
+<script>
+// import Button form '../views/Buttion.vue'
+export default {
+    components: {
+        Button
+    },
+    data() {
+        return {
+            type: 'success',
+            text: 'Button'
+        }
+    }
+}
+</script>
+```
+
+## router.js 动态引入
+router -> index.js / index.router.js / login.router.js
+```js
+// index.js
+import Vue from 'vue'
+import VueRouter from 'vue-router'
+
+Vue.use(VueRouter)
+const routerList = []
+// 引入路由
+function importAll(r) {
+    // r.keys() 是 importAll(require.context('./', false, /\.router\.js/)) 的返回值
+    r.keys().forEach(
+        // 把 export default 对象 追加到 routerList 中
+        (key) => routerList.push(r(key).default)
+    )
+}
+
+// 动态引入
+// require.context() => webpack API => 引入文件，动态的
+// 1. 路径
+// 2. 是否匹配子级文件
+// 3. 规则
+// 在和 index 同级的文件夹下 不找子级，找 .router.js结尾的文件
+importAll(require.context('./', false, /\.router\.js/))
+
+const route = [
+    ...routerList
+]
+```
+```js
+// index.router.js
+// 子模块
+export default {
+    path: '/index',
+    name: 'index',
+    // 页面的元信息
+    meta: {
+        require: true
+    },
+    // 懒加载实现  => 异步加载，输入路由的一瞬间再加载
+    component: () => import('../views/index.vue'),
+    children: [
+
+    ]
+}
+```
+```js
+// login.router.js
+// 子模块
+export default {
+    path: '/login',
+    name: 'login',
+    // 页面的元信息
+    meta: {
+        require: false
+    },
+    // 懒加载实现  => 异步加载，输入路由的一瞬间再加载
+    component: () => import('../views/login.vue'),
+    children: [
+
+    ]
+}
+```
+```js
+// main.js
+import Vue from 'vue'
+import App from './App.vue'
+import router from './router'
+import { checkArray } from './array' // 模拟检测权限的数组
+Vue.config.productionTip = false
+
+// 权限校验
+// 注册一个全局自定义指令 `v-display-key`
+Vue.directive('display-key', {
+    // 当被绑定的元素插入到 DOM 中的一瞬间做校验
+    // inserted：被绑定元素插入父节点时调用 (仅保证父节点存在，但不一定已被插入文档中)。
+    inserted(el, binding) { // binding：一个对象
+        let displayKey = binding.value // value：指令的绑定值，例如：v-display-key="2" 中，绑定值为 2。
+        if(displayKey) { // 如果有 displayKey 需要用权限来控制
+            let hasPerimission = checkArray(displayKey)
+            if(!hasPerimission) {
+                // 如果没有权限 通过父级删除当前元素
+                el.parentNode && el.parentNode.removeChild(el)
+            } else {
+                throw new Error(`need key! Like v-display-key = "'displayKey'"`)
+            }
+        }
+    }
+})
+
+// 路由守卫
+router.beforeEach((to, from, next) => {
+    let token = sessionStorage.getItem('token')
+    if(to.meta.require) {
+        if(token) {
+            // 允许进入
+            next()
+        } else {
+            // 跳登录
+        }
+    } else {
+        next()
+    }
+})
+
+new Vue({
+    router,
+    render: h => h(App)
+}).$mount('#app')
+```
+```js
+// array.js
+// 模拟后台权限数组
+export function checkArray(key) {
+    // 权限数组
+    let arr = ['1', '3', '5']
+    let index = arr.indexOf(key)
+
+    if(index > -1) {
+        return true
+    } else {
+        return false
+    }
+}
+```

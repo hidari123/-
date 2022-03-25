@@ -7,8 +7,74 @@
     <title>Document</title>
 </head>
 <body>
+    <h1 id="title" class="aa bb">hidari</h1>
+    <div class="p-con">
+        <p>111</p>
+        <p>222</p>
+        <p>333</p>
+        <p class="p4">444</p>
+    </div>
     <script>
 
+        let $ = jQuery =(function(window) {
+            // dom 存储
+            function Query(dom, selector) {
+                let i, len = dom ? dom.length : 0
+                for(i = 0; i < len; i++) this[i] = dom[i]
+                this.length = len
+                this.selector = selector || ''
+                return this
+            }
+        })()
+
+        // let $ = jQuery = (function(window){
+        //     let jquery = function(nodeSelector) {
+        //         this.nodes = document.querySelectorAll(nodeSelector)
+        //     }
+        //     // 原型方法
+        //     jquery.prototype = {
+        //         each: function(callback) {
+        //             for(let i = 0; i < this.nodes.length; i++) {
+        //                 callback.call(this, i, this.nodes[i])
+        //             }
+        //         },
+
+        //         // 添加class
+        //         addClass: function(classes) {
+        //             let className = classes.split(' ')
+        //             // 循环 class
+        //             className.forEach(value => {
+        //                 // 循环节点
+        //                 this.each(function(index, obj) {
+        //                     obj.classList.add(value)
+        //                 })
+        //             })
+        //         },
+
+        //         // 修改 text
+        //         setText: function(text) {
+        //             this.each(function(index, obj) {
+        //                 obj.textContent = text
+        //             })
+        //         }
+        //     }
+
+        //     // let jquery = function(nodeSelector) {} 和 jquery.prototype = {} 同一层次
+        //     // function(nodeSelector) 获取元素
+        //     // 所以需要先把 function(nodeSelector) 抛出去 获取元素
+        //     // jquery(nodeSelector) 才能拿到元素
+        //     return function(nodeSelector) {
+        //         return new jquery(nodeSelector)
+        //     }
+        // })()
+
+        $('.p4').addClass('blue')
+        $('.p4').setText('hidari')
     </script>
+    <style>
+        .blue {
+            color: blue;
+        }
+    </style>
 </body>
 </html>

@@ -12,6 +12,9 @@
   - [作用域](#%E4%BD%9C%E7%94%A8%E5%9F%9F)
   - [promise](#promise)
   - [深拷贝与浅拷贝](#%E6%B7%B1%E6%8B%B7%E8%B4%9D%E4%B8%8E%E6%B5%85%E6%8B%B7%E8%B4%9D)
+  - [发布-订阅模式](#%E5%8F%91%E5%B8%83-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F)
+    - [利用 发布-订阅模式代码解耦](#%E5%88%A9%E7%94%A8-%E5%8F%91%E5%B8%83-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%80%A6)
+  - [call和 aplly 的区别](#call%E5%92%8C-aplly-%E7%9A%84%E5%8C%BA%E5%88%AB)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -513,3 +516,169 @@ console.log(arr2, newArr) // [Array[4], Arr[3]] [Array[4], Arr[3]]
     }
     console.log(obj, newObj)
     ```
+
+## 发布-订阅模式
+
+### 利用 发布-订阅模式代码解耦
+```js
+// 在对象的方法中不建议使用箭头函数
+
+// 变成闭包，需要什么自己拿，避免资源浪费
+let Event = (function() { // 匿名自执行函数
+    // 花名册 [] => {}
+    // [] => 把 key 当作下标 取值 => 深拷贝
+    // {} => 浅拷贝
+    // 深拷贝耗费性能 不需要深拷贝 所以改成浅拷贝
+    let list = {},
+        listen,
+        trigger,
+        remove;
+
+        // 添加订阅者
+        listen = function(key, fn) {
+            // if(!this.list[key]) {
+            //     this.list[key] = []
+            // }
+            // this.list[key].push(fn)
+
+            // 短路表达式
+            (list[key] || (list[key] = [])).push(fn) // 判断有没有 key 没有就会定义一个key
+        },
+
+        // 发布
+        trigger= function() {
+            // 类数组转数组
+            let key = Array.prototype.shift.call(arguments),
+                fns = list[key] // 取出该消息对应回调函数
+            if(!fns || fns.length === 0) return false
+            for(let i = 0, fn; fn = fns[i++];) {
+                fn.apply(this, arguments) // 发布消息时的参数
+            }
+        },
+
+        remove = function(key, fn) {
+            let fns = list[key]
+            if(!fns) return false
+            if(!fn) {
+                fns && (fns.length === 0)
+            } else {
+                for(let i = fns.length -1; i >= 0; i--) {
+                    let _fn = fns[i]
+                    _fn === fn && (fn.splice(i, 1))
+                }
+            }
+        }
+
+        return {
+            listen: listen,
+            trigger: trigger,
+            remove: remove
+        }
+})();
+
+// 不需要通过中介，直接可以存取数据
+Event.listen('big', function(size) {
+    console.log(`migi: ${size} m^2`)
+})
+Event.trigger('big', 150)
+```
+```js
+// 未精简版
+// 抽离出 event对象 还需要定义不同的业务进行赋能
+let event = {
+    list: {}, // 花名册 [] => {}
+    // [] => 把 key 当作下标 取值 => 深拷贝
+    // {} => 浅拷贝
+    // 深拷贝耗费性能 不需要深拷贝 所以改成浅拷贝
+
+    // 添加订阅者
+    listen: function(key, fn) {
+        // if(!this.list[key]) {
+        //     this.list[key] = []
+        // }
+        // this.list[key].push(fn)
+
+        // 短路表达式
+        (this.list[key] || (this.list[key] = [])).push(fn) // 判断有没有 key 没有就会定义一个key
+    },
+
+    // 发布
+    trigger: function() {
+        // 类数组转数组
+        let key = Array.prototype.shift.call(arguments),
+            fns = this.list[key] // 取出该消息对应回调函数
+        if(!fns || fns.length === 0) return false
+        for(let i = 0, fn; fn = fns[i++];) {
+            fn.apply(this, arguments) // 发布消息时的参数
+        }
+    }
+}
+
+// 初始化 业务赋能
+let initEvent = function(obj) {
+    for(let i in event) {
+        obj[i] = event[i]
+    }
+}
+let houseObj = {} // 发布者 售楼处
+initEvent(houseObj)
+houseObj.listen('small', (size) => {
+    console.log(`hidari: ${size} m^2`)
+})
+
+houseObj.listen('big', (size) => {
+    console.log(`migi: ${size} m^2`)
+})
+
+houseObj.trigger('small', 100)
+houseObj.trigger('big', 50)
+console.log(houseObj.list)
+```
+
+
+## dom 库
+### 匿名自执行函数
+```js
+// jquery.js
+(function(window) {
+    // 获取东西
+    window.$ = jquery = function(nodeSelector) {
+        // 存放东西 node节点
+        let nodes = {}
+        if(typeof nodeSelector === 'string') {
+            // querySelectorAll 返回一个数组
+            let temp = document.querySelectorAll(nodeSelector)
+            for (let i = 0; i < temp.length; i++) {
+                nodes[i] = temp[i]
+            }
+            // nodes => 类数组 => 强行加上 length 属性
+            nodes.length = temp.length
+        } else {
+            throw new Error('必须输入字符串')
+        }
+
+        // 添加方法
+        nodes.addClass = function(classes) {
+            let className = classes.split(' ')
+            // 循环 class
+            className.forEach(value => {
+                // 循环节点
+                for(let i = 0; i < nodes.length; i++) {
+                    // .classList.add() js原生
+                    nodes[i].classList.add(value)
+                }
+            })
+        }
+
+        // 修改 text
+        nodes.setText = function(text) {
+            for(let i = 0; i < nodes.length; i++) {
+                nodes[i].textContent = text
+            }
+        }
+        return nodes
+    }
+})(window)
+```
+1. 自执行 => 单例模式
+2. 防止变量污染
