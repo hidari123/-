@@ -19,6 +19,12 @@
     - [编译优化](#%E7%BC%96%E8%AF%91%E4%BC%98%E5%8C%96)
   - [render()](#render)
   - [router.js 动态引入](#routerjs-%E5%8A%A8%E6%80%81%E5%BC%95%E5%85%A5)
+  - [$nextTick() => dom更新后的延迟回调](#nexttick--dom%E6%9B%B4%E6%96%B0%E5%90%8E%E7%9A%84%E5%BB%B6%E8%BF%9F%E5%9B%9E%E8%B0%83)
+    - [](#)
+    - [Vue.nextTick(callback) 使用原理](#vuenexttickcallback-%E4%BD%BF%E7%94%A8%E5%8E%9F%E7%90%86)
+  - [单页与多页的区别及优缺点](#%E5%8D%95%E9%A1%B5%E4%B8%8E%E5%A4%9A%E9%A1%B5%E7%9A%84%E5%8C%BA%E5%88%AB%E5%8F%8A%E4%BC%98%E7%BC%BA%E7%82%B9)
+  - [v-if 和 v-for 为什么不能一起使用](#v-if-%E5%92%8C-v-for-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E8%83%BD%E4%B8%80%E8%B5%B7%E4%BD%BF%E7%94%A8)
+  - [侦听器](#%E4%BE%A6%E5%90%AC%E5%99%A8)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -445,4 +451,131 @@ export function checkArray(key) {
         return false
     }
 }
+```
+
+## $nextTick() => dom更新后的延迟回调
+1. 放在`Vue.nextTick()` 回调函数中的执行的应该是会**对DOM进行操作的js代码**
+2. 理解：`nextTick()` 是将回调函数延迟在下一次dom更新数据后调用 => 当数据更新了，在dom中渲染后，自动执行该函数
+3. Vue 实现响应式并不是数据发生变化之后 DOM 立即变化，而是按一定的策略进行 DOM 的更新。`$nextTick` 是在下次 DOM 更新循环结束之后执行延迟回调，在修改数据之后使用 `$nextTick`，则可以在回调中获取更新后的 DOM
+
+### 
+什么时候需要用的Vue.nextTick()？
+1. Vue生命周期的`created()`钩子函数进行的 DOM 操作一定要放在`Vue.nextTick()`的回调函数中
+ - 原因是在`created()`钩子函数执行的时候 DOM 其实并未进行任何渲染，而此时进行 DOM 操作无异于徒劳，所以此处一定要将 DOM 操作的 js 代码放进`Vue.nextTick()`的回调函数中。与之对应的就是`mounted`钩子函数，因为该钩子函数执行时所有的DOM挂载已完成。
+ ```js
+created(){
+    let that=this
+    that.$nextTick(function(){  //不使用this.$nextTick()方法会报错
+        that.$refs.aa.innerHTML="created中更改了按钮内容"  //写入到DOM元素
+    })
+}
+ ```
+ 2. 当项目中你想在**改变DOM元素的数据后**基于新的dom做点什么，**对新DOM一系列的js操作**都需要放进`Vue.nextTick()`的回调函数中
+  - 更改数据后当你想立即使用js操作新的视图的时候需要使用它
+```js
+changeTxt:function() {
+    let that = this
+    that.testMsg = "修改后的文本值"  //修改dom结构
+    
+    that.$nextTick(function(){  //使用vue.$nextTick()方法可以dom数据更新后延迟执行
+        let domTxt = document.getElementById('h').innerText
+        console.log(domTxt)  //输出可以看到vue数据修改后并没有DOM没有立即更新
+        if(domTxt === "原始值"){
+            console.log("文本data被修改后dom内容没立即更新")
+        }else {
+            console.log("文本data被修改后dom内容被马上更新了")
+        }
+    })
+}
+```
+3. 在使用某个第三方插件时 ，希望在vue生成的某些dom动态发生变化时重新应用该插件，也会用到该方法，这时候就需要在 `$nextTick` 的回调函数中执行重新应用插件的方法
+
+### Vue.nextTick(callback) 使用原理
+1. Vue是异步执行dom更新的，一旦观察到数据变化，Vue就会开启一个队列，然后把在同一个事件循环 (event loop) 当中观察到数据变化的 `watcher` 推送进这个队列。**如果这个`watcher`被触发多次，只会被推送到队列一次**。这种缓冲行为可以有效的去掉重复数据造成的不必要的计算和DOM操作。而在下一个事件循环时，Vue会清空队列，并进行必要的DOM更新。
+2. 当你设置` vm.someData = 'new value'`，DOM **并不会马上更新，而是在异步队列被清除，也就是下一个事件循环开始时执行更新时才会进行必要的DOM更新**。如果此时你想要根据更新的 DOM 状态去做某些事情，就会出现问题。为了在数据变化之后等待 Vue 完成更新 DOM ，可以在数据变化之后立即使用 `Vue.nextTick(callback)` 。这样**回调函数在 DOM 更新完成后就会调用**
+
+## 单页与多页的区别及优缺点
+1. 单页(SPA)：只有一个主页面的应用
+    - 组件：页面片段
+    - 跳转：刷新局部资源
+    - 场景：PC端
+    - 优点：
+        1. 体验好，快
+        2. 改动内容，不用加载整个页面
+        3. 前后端分离
+        4. 效果可以很炫酷
+    - 缺点：
+        1. 不利于 SEO
+        2. 初次加载比较慢
+        3. 页面复杂度高
+2. 多页应用：整页刷新
+
+## v-if 和 v-for 为什么不能一起使用
+ - v-for 执行优先级 > v-if，v-if 会分别运行到每一个 v-for 之间
+
+ ## vue-router 和 location.href 的区别
+ 1. location.href 简单方便，刷新页面（跳外链）
+ 2. vue-router 按需加载，减少 dom 消耗（内部跳转）
+    - 封装的是 js 原生的 history
+
+## 侦听器
+```js
+class Observer {
+    constructor(value) {
+        // 初始化传进来的 value
+        this.value = value
+        if(Array.isArray(value)) {
+            // 数组的逻辑
+        } else {
+            // 对象的逻辑
+            this.walk(value)
+        }
+    }
+
+    walk(obj) {
+        const keys = Object.keys(obj)
+        for(let i = 0; i < keys.length; i++) {
+            defineReactive(obj, keys[i])
+        }
+    }
+}
+
+// 循环 让对象的每一个属性都变成可观测的
+function defineReactive(obj, key, val) {
+    // val 放在上面是为了少定义一个对象
+    // 传值的时候必然只传 obj 和 key
+    if(arguments.length === 2) { // obj, key
+        val = obj[key] // 对象的某个值
+    }
+
+    if(typeof val === 'object') {
+        new Observer(val)
+    }
+    Object.defineProperty(obj, key, {
+        enumerable: true, // 可枚举
+        configurable: true, // 可改变
+        get() {
+            console.log(`${key}属性被读取了`)
+            return val
+        },
+        set(newVal) {
+            console.log(`${key}属性被修改了，新值是${newVal}`)
+            val = newVal
+        }
+    })
+}
+
+//test
+let obj = new Observer({
+    name: 'hidari',
+    age: '18',
+    demo: {
+        a: 'aaa',
+        b: 12
+    }
+})
+console.log(obj.value.name)
+obj.value.age = 12
+console.log(obj.value.demo.a)
+obj.value.demo.b = 1234
 ```

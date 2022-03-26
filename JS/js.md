@@ -14,7 +14,9 @@
   - [深拷贝与浅拷贝](#%E6%B7%B1%E6%8B%B7%E8%B4%9D%E4%B8%8E%E6%B5%85%E6%8B%B7%E8%B4%9D)
   - [发布-订阅模式](#%E5%8F%91%E5%B8%83-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F)
     - [利用 发布-订阅模式代码解耦](#%E5%88%A9%E7%94%A8-%E5%8F%91%E5%B8%83-%E8%AE%A2%E9%98%85%E6%A8%A1%E5%BC%8F%E4%BB%A3%E7%A0%81%E8%A7%A3%E8%80%A6)
-  - [call和 aplly 的区别](#call%E5%92%8C-aplly-%E7%9A%84%E5%8C%BA%E5%88%AB)
+  - [dom 库](#dom-%E5%BA%93)
+    - [匿名自执行函数](#%E5%8C%BF%E5%90%8D%E8%87%AA%E6%89%A7%E8%A1%8C%E5%87%BD%E6%95%B0)
+  - [实参和形参](#%E5%AE%9E%E5%8F%82%E5%92%8C%E5%BD%A2%E5%8F%82)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -680,5 +682,145 @@ console.log(houseObj.list)
     }
 })(window)
 ```
+```js
+// 优化1 封装 for循环
+let $ = jQuery = (function(window){
+    let jquery = function(nodeSelector) {
+        this.nodes = document.querySelectorAll(nodeSelector)
+    }
+    // 原型方法
+    jquery.prototype = {
+        each: function(callback) {
+            for(let i = 0; i < this.nodes.length; i++) {
+                callback.call(this, i, this.nodes[i])
+            }
+        },
+
+        // 添加class
+        addClass: function(classes) {
+            let className = classes.split(' ')
+            // 循环 class
+            className.forEach(value => {
+                // 循环节点
+                this.each(function(index, obj) {
+                    obj.classList.add(value)
+                })
+            })
+        },
+
+        // 修改 text
+        setText: function(text) {
+            this.each(function(index, obj) {
+                obj.textContent = text
+            })
+        }
+    }
+
+    // let jquery = function(nodeSelector) {} 和 jquery.prototype = {} 同一层次
+    // function(nodeSelector) 获取元素
+    // 所以需要先把 function(nodeSelector) 抛出去 获取元素
+    // jquery(nodeSelector) 才能拿到元素
+    return function(nodeSelector) {
+        return new jquery(nodeSelector)
+    }
+})()
+
+$('.p4').addClass('blue')
+$('.p4').setText('hidari')
+```
+```js
+// 优化2 链式调用
+let $ = jQuery =(function(window) {
+    // dom 存储
+    function Query(dom, selector) {
+        let i, len = dom ? dom.length : 0
+        for(i = 0; i < len; i++) this[i] = dom[i]
+        this.length = len
+        this.selector = selector || ''
+        return this
+    }
+
+    // 生成 jquery 对象
+    function Z(elements, selector) {
+        return Query.call(this, elements, selector)
+    }
+
+    // 具体的 dom 查找
+    function qsa(element, selector) {
+        return element.querySelectorAll(selector)
+    }
+
+    // 保证 jquery 方法是纯净的，更容易扩展
+    Z.prototype = {
+        each(callback) {
+            // .every es5的方法，用来循环，循环的内容必须全部满足，返回 true，否则返回 false
+            [].every.call(this, function(el, index) {
+                return callback.call(el, index, el) !== false
+            })
+        },
+        find(selector) {
+            let doms = []
+            this.each(function(index, el) {
+                let childs = this.querySelectorAll(selector)
+                doms.push(...childs)
+            })
+            // return 为了链式调用
+            return new Z(doms, selector)
+        },
+        eq(i) {
+            let doms = []
+            this.each(function(index, el) {
+                if(i == index) {
+                    doms.push(this)
+                }
+            })
+            return new Z(doms, this.selector)
+        },
+        remove() {
+            this.each(function(index, el) {
+                this.remove()
+            })
+        }
+    }
+
+    // 全局方法
+    function isFunction(value) {
+        return typeof value === 'fuction'
+    }
+
+    function $(nodeSelector) {
+        let doms = qsa(document, nodeSelector)
+        return new Z(doms, nodeSelector)
+    }
+    
+    // 挂载全局方法
+    $.isFunction = isFunction
+
+    return $
+})(window)
+
+/**
+ *  <h1 id="title" class="aa bb">hidari</h1>
+    <div class="p-con">
+        <p>111</p>
+        <p>222</p>
+        <p>333</p>
+        <p class="p4">444</p>
+    </div>
+ */
+let pCon = $('.p-con')
+pCon.find('p').eq(1).remove()
+```
 1. 自执行 => 单例模式
 2. 防止变量污染
+
+## 实参和形参
+1. 参数有形参和实参的区别，形参相当于**函数中定义的变量**，实参是在**运行时的函数调用时传入的参数**
+2. 形参就是函数声明时的变量，实参是调用该函数时传入的具体参数。
+```js
+function add(a,b) {
+    return a + b
+}
+add(1,2)
+// 声明函数add时，a，b就是形参。调用函数add(1,2)  1，2就是实参。
+```
